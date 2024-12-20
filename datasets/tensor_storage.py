@@ -406,72 +406,75 @@ class TensorStorage:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
         self.close()
-        
+
     def rebuild_storage(
         self,
         new_storage_dir: Optional[str] = None,
         new_chunk_size: Optional[int] = None,
         description: Optional[str] = None,
-        inplace: bool = False
+        inplace: bool = False,
     ) -> "TensorStorage":
         """
         Rebuild the storage with new chunk size.
-        
+
         Args:
-            new_storage_dir (Optional[str]): Directory for the new storage. 
+            new_storage_dir (Optional[str]): Directory for the new storage.
                                            If None and inplace=True, will rebuild in place.
             new_chunk_size (Optional[int]): New chunk size in bytes. If None, uses current chunk size
             description (Optional[str]): New description. If None, uses current description
             inplace (bool): If True, will rebuild the storage in place, replacing current storage
-            
+
         Returns:
             TensorStorage: New storage instance with updated chunk size
-            
+
         Raises:
             ValueError: If inplace is True and new_storage_dir is provided
         """
         if inplace and new_storage_dir is not None:
             raise ValueError("Cannot specify new_storage_dir when inplace=True")
-            
+
         if inplace:
             # Create temporary directory for rebuilding
-            temp_dir = os.path.join(os.path.dirname(self.storage_dir), f"{os.path.basename(self.storage_dir)}_temp")
+            temp_dir = os.path.join(
+                os.path.dirname(self.storage_dir),
+                f"{os.path.basename(self.storage_dir)}_temp",
+            )
         else:
             if new_storage_dir is None:
                 raise ValueError("Must specify new_storage_dir when inplace=False")
             temp_dir = new_storage_dir
-            
+
         # Use current values if new ones not provided
         new_chunk_size = new_chunk_size or self.chunk_size
         new_description = description or self.description
-        
+
         try:
             # Create iterators for current data
             def tensor_iterator() -> Iterator[np.ndarray]:
                 for i in range(len(self)):
                     yield self[i]
-                    
+
             def metadata_iterator() -> Iterator[Dict[str, Any]]:
                 for i in range(len(self)):
                     yield self.get_params_for_tensor(i)
-            
+
             # Create new storage with different chunk size
             new_storage = TensorStorage.create_storage(
                 storage_dir=temp_dir,
                 data_iterator=tensor_iterator(),
                 metadata_iterator=metadata_iterator(),
                 chunk_size=new_chunk_size,
-                description=new_description
+                description=new_description,
             )
-            
+
             if inplace:
                 # Verify the new storage before replacing
                 self._verify_rebuilt_storage(new_storage)
-                
+
                 # Close both storages to ensure all files are written
                 self.close()
                 new_storage.close()
-                
+
                 # Replace old storage with new one
                 backup_dir = f"{self.storage_dir}_backup"
                 os.rename(self.storage_dir, backup_dir)
@@ -481,21 +484,21 @@ class TensorStorage:
                     # If something goes wrong, restore from backup
                     os.rename(backup_dir, self.storage_dir)
                     raise e
-                
+
                 # Remove backup after successful replacement
                 shutil.rmtree(backup_dir)
-                
+
                 # Reinitialize self with new storage
                 self.__init__(
                     storage_dir=self.storage_dir,
                     description=new_description,
                     chunk_size=new_chunk_size,
-                    return_metadata=self.return_metadata
+                    return_metadata=self.return_metadata,
                 )
                 return self
             else:
                 return new_storage
-                
+
         except Exception as e:
             # Clean up temporary directory if something goes wrong
             if inplace and os.path.exists(temp_dir):
@@ -505,33 +508,33 @@ class TensorStorage:
     def _verify_rebuilt_storage(self, new_storage: "TensorStorage") -> bool:
         """
         Verify that the rebuilt storage contains the same data.
-        
+
         Args:
             new_storage: The newly built storage to verify
-            
+
         Returns:
             bool: True if verification passes
-            
+
         Raises:
             ValueError: If verification fails
         """
         # Verify basic properties
         if len(self) != len(new_storage):
             raise ValueError("New storage has different number of elements")
-            
+
         # Verify sample of tensors
         sample_size = min(100, len(self))  # Check up to 100 random tensors
         indices = np.random.choice(len(self), sample_size, replace=False)
-        
+
         for idx in indices:
             original_tensor = self[idx]
             new_tensor = new_storage[idx]
             if not np.allclose(original_tensor, new_tensor):
                 raise ValueError(f"Data mismatch at index {idx}")
-                
+
             original_meta = self.get_params_for_tensor(idx)
             new_meta = new_storage.get_params_for_tensor(idx)
             if original_meta != new_meta:
                 raise ValueError(f"Metadata mismatch at index {idx}")
-                
+
         return True

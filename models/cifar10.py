@@ -2,12 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .baseclasses import (
-    BaseEncoder, 
+    BaseEncoder,
     BaseDecoder,
     BaseGlobalDiscriminator,
     BaseLocalDiscriminator,
-    BasePriorDiscriminator
+    BasePriorDiscriminator,
 )
+
 
 class CIFAR10Encoder(BaseEncoder):
     def __init__(self):
@@ -16,12 +17,12 @@ class CIFAR10Encoder(BaseEncoder):
         self.c1 = nn.Conv2d(64, 128, kernel_size=4, stride=1)
         self.c2 = nn.Conv2d(128, 256, kernel_size=4, stride=1)
         self.c3 = nn.Conv2d(256, 512, kernel_size=4, stride=1)
-        self.l1 = nn.Linear(512*20*20, 64)
+        self.l1 = nn.Linear(512 * 20 * 20, 64)
 
         self.b1 = nn.BatchNorm2d(128)
         self.b2 = nn.BatchNorm2d(256)
         self.b3 = nn.BatchNorm2d(512)
-        
+
         self.features_shape = (128, 26, 26)  # Shape after c1
 
     def forward(self, x):
@@ -32,16 +33,17 @@ class CIFAR10Encoder(BaseEncoder):
         encoded = self.l1(h.view(x.shape[0], -1))
         return encoded, features
 
+
 class CIFAR10Decoder(BaseDecoder):
     def __init__(self):
         super().__init__()
-        self.l1 = nn.Linear(64, 512*20*20)
-        
+        self.l1 = nn.Linear(64, 512 * 20 * 20)
+
         self.dc3 = nn.ConvTranspose2d(512, 256, kernel_size=4, stride=1)
         self.dc2 = nn.ConvTranspose2d(256, 128, kernel_size=4, stride=1)
         self.dc1 = nn.ConvTranspose2d(128, 64, kernel_size=4, stride=1)
         self.dc0 = nn.ConvTranspose2d(64, 3, kernel_size=4, stride=1)
-        
+
         self.b3 = nn.BatchNorm2d(256)
         self.b2 = nn.BatchNorm2d(128)
         self.b1 = nn.BatchNorm2d(64)
@@ -49,12 +51,13 @@ class CIFAR10Decoder(BaseDecoder):
     def forward(self, encoded, features=None):
         h = self.l1(encoded)
         h = h.view(h.size(0), 512, 20, 20)
-        
+
         h = F.relu(self.b3(self.dc3(h)))
         h = F.relu(self.b2(self.dc2(h)))
         h = F.relu(self.b1(self.dc1(h)))
         reconstructed = torch.sigmoid(self.dc0(h))
         return reconstructed
+
 
 class CIFAR10GlobalDiscriminator(BaseGlobalDiscriminator):
     def __init__(self):
@@ -74,6 +77,7 @@ class CIFAR10GlobalDiscriminator(BaseGlobalDiscriminator):
         h = F.relu(self.l1(h))
         return self.l2(h)
 
+
 class CIFAR10LocalDiscriminator(BaseLocalDiscriminator):
     def __init__(self):
         super().__init__()
@@ -85,6 +89,7 @@ class CIFAR10LocalDiscriminator(BaseLocalDiscriminator):
         h = F.relu(self.c0(x))
         h = F.relu(self.c1(h))
         return self.c2(h)
+
 
 class CIFAR10PriorDiscriminator(BasePriorDiscriminator):
     def __init__(self):

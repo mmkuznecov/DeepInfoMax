@@ -2,9 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class DeepInfoMaxLoss(nn.Module):
     """Implementation of Deep InfoMax loss."""
-    
+
     def __init__(
         self,
         global_disc,
@@ -12,14 +13,14 @@ class DeepInfoMaxLoss(nn.Module):
         prior_disc,
         alpha: float = 0.5,
         beta: float = 1.0,
-        gamma: float = 0.1
+        gamma: float = 0.1,
     ):
         """
         Initialize Deep InfoMax loss.
-        
+
         Args:
             global_disc: Global discriminator module
-            local_disc: Local discriminator module  
+            local_disc: Local discriminator module
             prior_disc: Prior discriminator module
             alpha: Weight for global loss term
             beta: Weight for local loss term
@@ -54,18 +55,20 @@ class DeepInfoMaxLoss(nn.Module):
 
         # Prior loss
         prior = torch.rand_like(y)
-        term_a = torch.log(self.prior_d(prior)).mean()
-        term_b = torch.log(1.0 - self.prior_d(y)).mean()
+        eps = 1e-10  # for avoiding nans
+        term_a = torch.log(self.prior_d(prior) + eps).mean()
+        term_b = torch.log(1.0 - self.prior_d(y) + eps).mean()
         PRIOR = -(term_a + term_b) * self.gamma
 
         return LOCAL + GLOBAL + PRIOR
 
+
 class ReconstructionLoss(nn.Module):
     """Simple MSE reconstruction loss for autoencoder training."""
-    
+
     def __init__(self):
         super().__init__()
         self.mse = nn.MSELoss()
-        
+
     def forward(self, reconstruction, target):
         return self.mse(reconstruction, target)
